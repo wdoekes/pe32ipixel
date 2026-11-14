@@ -1,0 +1,24 @@
+#menu "iPixel trigger"
+#
+#config IPIXEL_NAME_PREFIX
+#    string "BLE name prefix of the panel"
+#    default "LED_BLE_"
+#
+#config IPIXEL_TRIGGER_GPIO
+#    int "Trigger GPIO (active low, internal pull-up)"
+#    default 0
+#
+#config IPIXEL_TRIGGER_SLOT
+#    int "Slot to play once on trigger"
+#    range 1 255
+#    default 8
+#
+#config IPIXEL_TRIGGER_MS
+#    int "Play time of the trigger slot before the slideshow resumes (ms)"
+#    default 10000
+#
+#config IPIXEL_SLIDESHOW
+#    string "Slideshow slots to resume with, space separated"
+#    default "1 2 4"
+#
+#endmenu
