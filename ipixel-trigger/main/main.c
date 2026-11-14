@@ -20,7 +20,7 @@
 #define CONFIG_IPIXEL_TRIGGER_SLOT 15
 #define CONFIG_IPIXEL_TRIGGER_MS 4000
 #define CONFIG_IPIXEL_COUNTER_MS 4000
-#define CONFIG_IPIXEL_SLIDESHOW "1 2 3 4"
+#define CONFIG_IPIXEL_SLIDESHOW "1 2 3 4 5"
 /* Connect straight away instead of scanning for NAME_PREFIX first. */
 #define PANEL_ADDR {0x64, 0xe3, 0xa5, 0x57, 0x26, 0x25} /* 25:26:57:A5:E3:64, LSB first */
 
