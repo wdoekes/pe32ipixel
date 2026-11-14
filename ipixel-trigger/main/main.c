@@ -51,12 +51,11 @@ static const uint8_t digits[10][16] = {
 };
 /* 31 00 00 01 00 22 00 00 00 29 11 70 41 00 00 01 00 01 01 00 50 00 ff ff ff 00 00 00 00 00 ff ff ff 00 00 00 00 10 18 14 10 10 10 10 10 10 7c 00 00 */
 
-/* A connect that works takes ~3-4 s; one that hasn't connected by 8 s
- * doesn't connect at all, while a fresh attempt usually does. */
-#define CONNECT_MS 4300
-#define TRIES 4
-/* Connecting to the panel takes ~3-4 s (bleak and ESP alike). */
-#define SCAN_MS 30000
+
+/* One attempt per press. A connect that works takes ~3-4 s; a stalled one
+ * doesn't recover, and pressing again starts a fresh one. */
+#define SCAN_MS 10000
+#define CONNECT_MS 10000
 
 static const ble_uuid16_t write_uuid = BLE_UUID16_INIT(0xFA02);
 
@@ -211,13 +210,12 @@ static void link_close(void)
         xEventGroupWaitBits(events, GONE, pdTRUE, pdFALSE, portMAX_DELAY);
 }
 
-/* The link can drop between the trigger and the slideshow; reconnect once. */
-static void deliver(const char *what, const uint8_t *buf, uint16_t len)
+static bool deliver(const char *what, const uint8_t *buf, uint16_t len)
 {
-    for (int tries = TRIES; tries--;)
-        if ((conn != BLE_HS_CONN_HANDLE_NONE || link_open()) && link_write(buf, len))
-            return;
-    ESP_LOGE(TAG, "%s: giving up", what);
+    if ((conn != BLE_HS_CONN_HANDLE_NONE || link_open()) && link_write(buf, len))
+        return true;
+    ESP_LOGE(TAG, "%s: failed, press again", what);
+    return false;
 }
 
 static uint8_t *put_le(uint8_t *p, uint32_t v, int n)
@@ -296,7 +294,8 @@ static void IRAM_ATTR on_button(void *arg)
 }
 
 /* The counter reuses the trigger's link to skip a slow connect. The slideshow
- * can't: the panel ignores prg-mode on the link that delivered the text. */
+ * can't: the panel ignores prg-mode on the link that delivered the text. A
+ * failed step skips the rest; the next press starts over. */
 static void trigger_task(void *arg)
 {
     static const uint8_t once_slot[] = {CONFIG_IPIXEL_TRIGGER_SLOT};
@@ -314,13 +313,15 @@ static void trigger_task(void *arg)
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         snprintf(count, sizeof count, "%" PRIu32, ++presses);
         ESP_LOGI(TAG, "trigger %s: slot %d", count, CONFIG_IPIXEL_TRIGGER_SLOT);
-        deliver("trigger", once, once_len);
-        vTaskDelay(pdMS_TO_TICKS(CONFIG_IPIXEL_TRIGGER_MS));
-        deliver("counter", text, text_cmd(text, count));
-        link_close();
-        vTaskDelay(pdMS_TO_TICKS(CONFIG_IPIXEL_COUNTER_MS));
-        ESP_LOGI(TAG, "slideshow: %s", CONFIG_IPIXEL_SLIDESHOW);
-        deliver("slideshow", show, show_len);
+        if (deliver("trigger", once, once_len)) {
+            vTaskDelay(pdMS_TO_TICKS(CONFIG_IPIXEL_TRIGGER_MS));
+            if (deliver("counter", text, text_cmd(text, count))) {
+                link_close();
+                vTaskDelay(pdMS_TO_TICKS(CONFIG_IPIXEL_COUNTER_MS));
+                ESP_LOGI(TAG, "slideshow: %s", CONFIG_IPIXEL_SLIDESHOW);
+                deliver("slideshow", show, show_len);
+            }
+        }
         link_close();
         /* Presses (and contact bounce) during playback don't queue a rerun. */
         ulTaskNotifyTake(pdTRUE, 0);
